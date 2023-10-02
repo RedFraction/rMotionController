@@ -1,11 +1,19 @@
 # rMotionController
-
--------------------------------------------------------------------------------------------------------- 
-
 ###### Inspired by Novoselov's hand motion controller - [link](https://github.com/NovoselovMilk/Hand_Controller)
 
-![img](models/novoselov/img/img.png)
-<iframe width="560" height="315" src="https://www.youtube.com/embed/b5Prc8Tttrw?si=sEyZa0WieyCZ01ko" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+<table border="0" >
+  <tr>
+    <td>
+      Watch on youtube:<br/>
+      <a href="https://youtu.be/b5Prc8Tttrw?si=v8vZV8y-DnzVJUDU">
+        <img src="https://img.youtube.com/vi/b5Prc8Tttrw/hqdefault.jpg"/>
+      </a>
+    </td>
+    <td>
+      <img src="models/novoselov/img/img.png" width=390 height=370/>
+    </td>
+  </tr>
+</table>
 
 ### Requirements:
 
