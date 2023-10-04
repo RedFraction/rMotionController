@@ -7,10 +7,15 @@
     Red Fraction © 2023
 */
 
+//#define DEBUG
+#define USB_JOYSTICK    // Supported only on leonardo / pro micro
+
 #include "MPU6050_6Axis_MotionApps20.h"
 #include "PPMEncoder.h"
 
-//#define DEBUG
+#ifdef USB_JOYSTICK
+#include "Joystick.h"
+#endif
 
 // REVERSES
 //#define YAW_REV	// YAW reverse
@@ -19,13 +24,13 @@
 //#define THR_REV	// реверс курка
 
 // GYRO/ACC DEGRESS RANGE
-#define MAX_ANGLE_ROLL    2	// ROLL
-#define MAX_ANGLE_PITCH   2	// PITCH 
-#define MAX_ANGLE_YAW     2	// YAW 
+#define MAX_ANGLE_ROLL    30	// ROLL
+#define MAX_ANGLE_PITCH   30	// PITCH
+#define MAX_ANGLE_YAW     40	// YAW
 
 // TRIGGER RANGE
-#define TRIGGER_MIN   420	// TRIGGER MIN VALUE (PUT YOUR VALUE HERE)
-#define TRIGGER_MAX   503       // TRIGGER MAX VALUE (PUT YOUR VALUE HERE)
+#define TRIGGER_MIN   415	// TRIGGER MIN VALUE (PUT YOUR VALUE HERE)
+#define TRIGGER_MAX   495 // TRIGGER MAX VALUE (PUT YOUR VALUE HERE)
 
 // PINOUT SETUP
 #define PPM_PIN     A3	// PPM signal out pin
@@ -88,14 +93,14 @@ float yrp[3];           // [yaw, roll, pitch]   yaw/roll/pitch container and gra
 uint8_t teapotPacket[14] = { '$', 0x02, 0,0, 0,0, 0,0, 0,0, 0x00, 0x00, '\r', '\n' };
 
 volatile bool mpuInterrupt = false;     // indicates whether MPU interrupt pin has gone high
+
 void dmpDataReady() {
-    
     mpuInterrupt = true;
 }
 
 void calibrateMPU() {
-    mpu.CalibrateAccel(6);
-    mpu.CalibrateGyro(6);
+    mpu.CalibrateAccel(10);
+    mpu.CalibrateGyro(10);
     setNeutral();
 }
 
@@ -130,7 +135,7 @@ void _mpu_init() {
         mpu.CalibrateAccel(6);
         mpu.CalibrateGyro(6);
         mpu.PrintActiveOffsets();
-        
+
         #ifdef DEBUG
         Serial.println(F("Enabling DMP..."));
         #endif
@@ -141,7 +146,7 @@ void _mpu_init() {
         Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
         Serial.println(F(")..."));
         #endif
-        
+
         attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
         mpuIntStatus = mpu.getIntStatus();
 
@@ -161,22 +166,22 @@ void _mpu_init() {
 }
 
 void _mpu_loop() {
-  if (!dmpReady) return;
-  if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) {
-    mpu.dmpGetQuaternion(&q, fifoBuffer);
-    mpu.dmpGetGravity(&gravity, &q);
-    mpu.dmpGetYawPitchRoll(yrp, &q, &gravity);
-    #ifdef YAW_REV
-      yrp[0] = -yrp[0];
-    #endif
-    #ifdef ROLL_REV 
-      yrp[1] = -yrp[1];
-    #endif
-    #ifdef PITCH_REV
-      yrp[2] = -yrp[2];
-    #endif
-    
-  }
+    if (!dmpReady) return;
+    if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) {
+        mpu.dmpGetQuaternion(&q, fifoBuffer);
+        mpu.dmpGetGravity(&gravity, &q);
+        mpu.dmpGetYawPitchRoll(yrp, &q, &gravity);
+        #ifdef YAW_REV
+          yrp[0] = -yrp[0];
+        #endif
+        #ifdef ROLL_REV
+          yrp[1] = -yrp[1];
+        #endif
+        #ifdef PITCH_REV
+          yrp[2] = -yrp[2];
+        #endif
+
+    }
 }
 /* --------------------------------------------------------*/
 /* ----------------------- END MPU  ---------------------- */
@@ -193,22 +198,23 @@ void ledOut() {
 	digitalWrite(LED_PIN, LOW);
 }
 
-
-
 void setNeutral() {
     for (uint8_t i = 0; i < PPM_CH + 1; i++) {
         ppm[i] = MID;
     }
 }
 
+#ifndef USB_JOYSTICK
 void send_ppm() {
     for (uint8_t i = 0; i < PPM_CH + 1; i++) {
         ppmEncoder.setChannel(i, ppm[i]);
     }
 }
+#endif
 
 void setAER(float val, uint8_t ch, uint8_t max_angle) {
-    ppm[ch] = val * (512 * max_angle) + MID;
+        
+    ppm[ch] = map((val * 180/M_PI), -max_angle, max_angle, MIN, MAX);
 
     if (ppm[ch] > MAX) {
         ppm[ch] = MAX;
@@ -216,6 +222,10 @@ void setAER(float val, uint8_t ch, uint8_t max_angle) {
         ppm[ch] = MIN;
     }
 }
+
+// void setOffset() {
+//     // TODO: Solve Z offset problem
+// }
 
 void setThr(uint8_t ch) {
     
@@ -266,22 +276,41 @@ void chDebugLog() {
 } 
 #endif
 
+#ifdef USB_JOYSTICK
+    Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID,JOYSTICK_TYPE_GAMEPAD,
+        0,      0,              // Button Count, Hat Switch Count
+        true,   true,   true,   // X , Y, Z Axis
+        false,  false,  false,  // No Rx, Ry, or Rz
+        false,  true,           // No rudder or throttle
+        false,  false,  false   // No accelerator, brake, or steering
+    ); 
+#endif
+
+   
 void setup() {
 
-  pinMode(SWITCH_1, INPUT_PULLUP);
-  pinMode(SWITCH_2, INPUT_PULLUP);
+    #ifdef USB_JOYSTICK
+    Joystick.begin();
+    Joystick.setXAxisRange(MIN, MAX);
+    Joystick.setYAxisRange(MIN, MAX);
+    Joystick.setZAxisRange(MIN, MAX);
+    Joystick.setThrottleRange(MIN, MAX);
+    #endif
 
-  #ifdef DEBUG
-  Serial.begin(9600);
-  Serial.println("Initializing I2C devices...");
-  Serial.println("Testing device connections...");
-  Serial.println(mpu.testConnection() ? "MPU6050 connection successful" : "MPU6050 connection failed");
-  #endif
+    pinMode(SWITCH_1, INPUT_PULLUP);
+    pinMode(SWITCH_2, INPUT_PULLUP);
 
-  ppmEncoder.begin(PPM_PIN);
+    #ifdef DEBUG
+    Serial.begin(9600);
+    Serial.println("Initializing I2C devices...");
+    Serial.println("Testing device connections...");
+    Serial.println(mpu.testConnection() ? "MPU6050 connection successful" : "MPU6050 connection failed");
+    #endif
 
-  _mpu_init();
-  calibrateMPU();
+    ppmEncoder.begin(PPM_PIN);
+
+    _mpu_init();
+    calibrateMPU();
 }
 
 void loop() {
@@ -328,7 +357,15 @@ void loop() {
     chDebugLog();
     #endif
 
+    #ifndef USB_JOYSTICK
     send_ppm();
+    #endif
+    #ifdef USB_JOYSTICK
+    Joystick.setXAxis(ppm[ROLL_CH]);
+    Joystick.setYAxis(ppm[PITCH_CH]);
+    Joystick.setZAxis(ppm[THR_CH]);
+    Joystick.setThrottle(ppm[YAW_CH]);
+    #endif
 }
 /* --------------------------------------------------------*/
 /* --------------------- END rMotion  -------------------- */
